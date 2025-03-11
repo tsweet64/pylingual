@@ -1,14 +1,13 @@
 from typing import TYPE_CHECKING
 import click
 import logging
-import shutil
 import platform
 import subprocess
 import os
 from pathlib import Path
 
 import pylingual.utils.ascii_art as ascii_art
-from pylingual.utils.generate_bytecode import CompileError
+from pylingual.utils.generate_bytecode import CompileError, has_pyenv
 from pylingual.utils.version import PythonVersion, supported_versions
 from pylingual.utils.tracked_list import TrackedList, SEGMENTATION_STEP, TRANSLATION_STEP, CFLOW_STEP, CORRECTION_STEP
 from pylingual.utils.lazy import lazy_import
@@ -41,8 +40,9 @@ def print_header():
     console.rule()
 
 
-def print_result(file: str, result: DecompilerResult):
-    table = Table(title=f"Equivalence Results for {file}")
+def print_result(result: DecompilerResult):
+    pyc = result.original_pyc
+    table = Table(title=f"Equivalence Results for {pyc.pyc_path.name if pyc.pyc_path else repr(pyc)}")
     table.add_column("Code Object")
     table.add_column("Success")
     table.add_column("Message")
@@ -78,8 +78,8 @@ def main(files: list[str], out_dir: Path | None, config_file: Path | None, versi
     if init_pyenv and (not install_pyenv() or not files):
         return
 
-    if out_dir is not None:
-        out_dir.mkdir(parents=True, exist_ok=True)
+    if out_dir:
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
 
     progress = Progress(
         TextColumn("[progress.description]{task.description}"),
@@ -98,10 +98,10 @@ def main(files: list[str], out_dir: Path | None, config_file: Path | None, versi
     TrackedList.init = init
     TrackedList.progress = lambda self, i: progress.advance(self.task.id, i)
     # the step is not done until the TrackedList is deleted
-    TrackedList.__del__ = lambda self: progress.advance(self.task.id, float("inf"))
+    TrackedList.__del__ = lambda self: progress.advance(self.task.id, 9e999)
 
     n = len(files)
-    with Live(Group(Rule(), status, progress), transient=True, console=console, refresh_per_second=12.5):
+    with Live(Group(Rule(), status, progress), transient=True, console=console, refresh_per_second=12.5) as live:
         transformers.logging.disable_default_handler()
         transformers.logging.add_handler(log_handler)
         progress.add_task(SEGMENTATION_STEP, start=False)
@@ -112,28 +112,32 @@ def main(files: list[str], out_dir: Path | None, config_file: Path | None, versi
             for task in progress.tasks:
                 progress.reset(task.id, start=False)
             pyc_path = Path(file)
-            log_handler.keywords = [file, pyc_path.name, pyc_path.with_suffix(".py").name]
+            log_handler.keywords = [file, pyc_path.name, pyc_path.with_suffix(".py").name, "decompiled_" + pyc_path.with_suffix(".py").name]
             status.update(f"Decompiling {pyc_path} ({i + 1} / {n})")
             if not pyc_path.exists():
                 raise FileNotFoundError(f"pyc file {pyc_path} does not exist")
 
             try:
                 result = decompile(
-                    file=pyc_path,
-                    out_dir=out_dir / f"decompiled_{pyc_path.stem}" if out_dir is not None else Path(f"decompiled_{pyc_path.stem}"),
+                    pyc=pyc_path,
+                    save_to=Path(f"{out_dir}/decompiled_{pyc_path.with_suffix('.py').name}" if out_dir else f"decompiled_{pyc_path.with_suffix('.py').name}"),
                     config_file=Path(config_file) if config_file else None,
                     version=version,
                     top_k=top_k,
                     trust_lnotab=trust_lnotab,
                 )
-                print_result(pyc_path.name, result)
+                print_result(result)
             except Exception:
+                import pdb
+
+                live.stop()
+                pdb.xpm()
                 logger.exception(f"Failed to decompile {pyc_path}")
             console.rule()
 
 
 def install_pyenv():
-    if shutil.which("pyenv") is not None:
+    if has_pyenv():
         logger.warning("pyenv seems to already be installed, ignoring --init-pyenv...")
         return True
     if platform.system() not in ["Linux", "Darwin"] and not click.confirm("pyenv is probably not supported on your operating system. Continue?", default=False):
@@ -144,8 +148,9 @@ def install_pyenv():
     if subprocess.run(cmd, shell=True).returncode != 0:
         logger.error("pyenv install failed, exiting...")
         return False
+    has_pyenv.cache_clear()
     os.environ["PATH"] = f"{os.environ.get('PYENV_ROOT', os.path.expanduser('~/.pyenv'))}/bin:{os.environ['PATH']}"
-    if shutil.which("pyenv") is None:
+    if not has_pyenv():
         logger.error("Could not find pyenv, exiting...")
         return False
     versions = click.prompt(

@@ -3,13 +3,21 @@
 import subprocess
 import sys
 import shlex
+import shutil
 import py_compile
+import functools
 
 from pylingual.utils.version import PythonVersion
 
 
 class CompileError(Exception):
     success = False
+    bc_a = None
+
+
+@functools.cache
+def has_pyenv():
+    return shutil.which("pyenv") is not None
 
 
 def compile_version(py_file, out_file, version):
