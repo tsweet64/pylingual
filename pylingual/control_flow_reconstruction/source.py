@@ -95,9 +95,9 @@ class SourceContext:
             return indent_lines(template.header_lines + self.cache[template], indent)
         return template.header_lines + self.cache[template]
 
-    def source_lines_of(self, cft: ControlFlowTemplate, i=0) -> Generator[SourceLine]:
-        lines = self[cft, i]
-        purged = cft in self.purged_cfts
+    def source_lines_of(self, co: Code3, i=0) -> Generator[SourceLine]:
+        lines = self[self.cfts[co], i]
+        purged = self.cfts[co] in self.purged_cfts
         prev = None
         for line in lines:
             if line.child:
@@ -106,9 +106,18 @@ class SourceContext:
                         yield prev
                     else:
                         yield SourceLine(fake_header(line.child), line.indent - 1, line.child)
-                yield from self.source_lines_of(self.cfts[line.child], line.indent)
+                yield from self.source_lines_of(line.child, line.indent)
             elif not purged:
-                yield line
+                # filter out returns in top level codeobjs and classes
+                if not co.co_flags & (inspect.CO_NEWLOCALS | inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR):
+                    if line.line == 'return':
+                        yield line.with_line('pass')
+                    elif line.line.startswith('return '):
+                        yield SourceLine('# ' + line.line, line.indent, line.blame, meta=True)
+                    else:
+                        yield line
+                else:
+                    yield line
             prev = line
 
     def purge(self, co: Code3):
@@ -125,7 +134,7 @@ class SourceContext:
                 return 1
             return 2
 
-        lines = self.header_lines + list(self.source_lines_of(self.cfts[self.pyc.codeobj]))
+        lines = self.header_lines + list(self.source_lines_of(self.pyc.codeobj))
         prefix = [x.with_line(x.line[10:]) if x.line.startswith("__doc__ = ") else x for x in sorted(itertools.takewhile(is_prefix, lines), key=priority)]
         lines[: len(prefix)] = prefix
 
