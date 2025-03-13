@@ -110,10 +110,10 @@ class SourceContext:
             elif not purged:
                 # filter out returns in top level codeobjs and classes
                 if not co.co_flags & (inspect.CO_NEWLOCALS | inspect.CO_GENERATOR | inspect.CO_ASYNC_GENERATOR):
-                    if line.line == 'return':
-                        yield line.with_line('pass')
-                    elif line.line.startswith('return '):
-                        yield SourceLine('# ' + line.line, line.indent, line.blame, meta=True)
+                    if line.line == "return":
+                        yield line.with_line("pass")
+                    elif line.line.startswith("return "):
+                        yield SourceLine("# " + line.line, line.indent, line.blame, meta=True)
                     else:
                         yield line
                 else:

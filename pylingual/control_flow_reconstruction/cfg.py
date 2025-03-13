@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 from pathlib import Path
 
@@ -27,6 +26,14 @@ class CFG(DiGraph_CFT):
     run: int
 
     @staticmethod
+    def enable_graphing(graph_path: Path | str, fmt: str = "jpg"):
+        CFG.visualize = CFG._visualize
+        CFG.layout_nodes = CFG._layout_nodes
+        CFG.graph_path = Path(graph_path)
+        CFG.graph_path.mkdir(exist_ok=True, parents=True)
+        CFG.graph_format = fmt
+
+    @staticmethod
     def from_graph(cfg: nx.DiGraph, bytecode: EditableBytecode) -> CFG:
         self = CFG(cfg)
 
@@ -36,10 +43,6 @@ class CFG(DiGraph_CFT):
         self.end = MetaTemplate("end", bytecode.codeobj)
         self.iteration_graphs = []
         self.run = 0
-
-        if "DEBUG_CFLOW" not in os.environ:
-            self.visualize = lambda dir="": None
-            self.layout_nodes = lambda: None
 
         InstTemplate.match_all(self)
 
@@ -77,10 +80,12 @@ class CFG(DiGraph_CFT):
         else:
             for x in flatten(graphs):
                 g = pydot.graph_from_dot_data(x)[0]
-                g.set_prog(["neato", "-n"])
-                g.write_png("/tmp/graph/" + g.get_name().replace('"', ""))
+                g.write(str(CFG.graph_path / g.get_name().replace('"', "")), prog=["neato", "-n"], format=CFG.graph_format)
 
     def layout_nodes(self):
+        pass
+
+    def _layout_nodes(self):
         relabeled = nx.convert_node_labels_to_integers(self, label_attribute="template")  # type: ignore
 
         root = next(i for i in relabeled.nodes if relabeled.nodes[i]["template"] == self.start)
@@ -99,7 +104,10 @@ class CFG(DiGraph_CFT):
     def dominates(self, node_a, node_b):
         return self._dr.has_edge(node_a, node_b) or node_a == node_b
 
-    def visualize(self, dir="/tmp/graph"):
+    def visualize(self):
+        pass
+
+    def _visualize(self):
         for n in self.nodes:
             self.nodes[n]["label"] = repr(n)
 
@@ -107,9 +115,8 @@ class CFG(DiGraph_CFT):
             self.layout_nodes()
 
         i = "-".join([str(self.i)] + [str(len(x)) for x in self.iteration_graphs])
-        out = Path(f"{dir}/{self.bytecode.name}_{self.bytecode.version[1]}_{i}.png")
+        out = Path(f"{CFG.graph_path}/{self.bytecode.name}_{self.bytecode.version[1]}_{i}.{CFG.graph_format}")
         dot = pydot.Dot(out.name, splines=True)
-        dot.set_prog(["neato", "-n"])
         nodes = {}
 
         for node, data in self.nodes.data():
@@ -118,6 +125,6 @@ class CFG(DiGraph_CFT):
         for a, b, data in self.edges.data():
             dot.add_edge(pydot.Edge(nodes[a], nodes[b], **data, label=data["kind"].value, color=data["kind"].color(), fontname="Noto Sans", labeljust="l"))
         if not self.iteration_graphs:
-            dot.write_png(out)
+            dot.write(out, prog=["neato", "-n"], format=CFG.graph_format)
         else:
             self.iteration_graphs[-1].append(dot.to_string())

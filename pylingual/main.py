@@ -6,12 +6,13 @@ import subprocess
 import os
 from pathlib import Path
 
+from pylingual.equivalence_check import TestResult
 import pylingual.utils.ascii_art as ascii_art
 from pylingual.utils.generate_bytecode import CompileError, has_pyenv
 from pylingual.utils.version import PythonVersion, supported_versions
 from pylingual.utils.tracked_list import TrackedList, SEGMENTATION_STEP, TRANSLATION_STEP, CFLOW_STEP, CORRECTION_STEP
 from pylingual.utils.lazy import lazy_import
-from pylingual.decompiler import DecompilerResult, decompile
+from pylingual.decompiler import decompile
 
 import rich
 from rich.align import Align
@@ -40,13 +41,12 @@ def print_header():
     console.rule()
 
 
-def print_result(result: DecompilerResult):
-    pyc = result.original_pyc
-    table = Table(title=f"Equivalence Results for {pyc.pyc_path.name if pyc.pyc_path else repr(pyc)}")
+def print_result(title: str, results: list[TestResult]):
+    table = Table(title=title)
     table.add_column("Code Object")
     table.add_column("Success")
     table.add_column("Message")
-    for r in result.equivalence_results:
+    for r in results:
         if isinstance(r, CompileError):
             continue
         table.add_row(r.names(), "Success" if r.success else "Failure", r.message, style="red" if not r.success else "")
@@ -126,7 +126,8 @@ def main(files: list[str], out_dir: Path | None, config_file: Path | None, versi
                     top_k=top_k,
                     trust_lnotab=trust_lnotab,
                 )
-                print_result(result)
+                pyc = result.original_pyc
+                print_result(f"Equivalence Results for {pyc.pyc_path.name if pyc.pyc_path else repr(pyc)}", result.equivalence_results)
             except Exception:
                 import pdb
 
