@@ -47,6 +47,7 @@ class Try3_12(ControlFlowTemplate):
     def to_indented_source():
         """
         {try_header}
+        try:
             {try_body}
         {except_body}
         """
@@ -80,6 +81,7 @@ class TryElse3_12(ControlFlowTemplate):
     def to_indented_source():
         """
         {try_header}
+        try:
             {try_body}
         {except_body}
         else:
@@ -269,4 +271,4 @@ class TryFinally3_12(ControlFlowTemplate):
             in_finally = source[self.finally_body, 1]
             after = []
 
-        return list(chain(header, body, self.line("finally:"), in_finally, after))
+        return list(chain(header, self.line("try:"), body, self.line("finally:"), in_finally, after))

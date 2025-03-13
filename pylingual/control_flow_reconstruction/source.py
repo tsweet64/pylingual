@@ -33,7 +33,7 @@ class SourceLine(NamedTuple):
 
 
 def sanitize_lines(lines: list[str]) -> list[str]:
-    return ["" if x in ("break", "continue", "except:", "while True:") else x for x in (x[2:] if x.startswith("elif ") else x for x in (x.strip() for x in lines))]
+    return ["" if x in ("break", "continue", "except:", "while True:", "try:") else x for x in (x[2:] if x.startswith("elif ") else x for x in (x.strip() for x in lines))]
 
 
 def fake_header(co: Code3):
