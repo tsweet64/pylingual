@@ -106,7 +106,6 @@ class WithTemplate39(ControlFlowTemplate, AbstractNonSequentiable):
         return reduced_cfg
 
     def to_indented_source(self, source_lines: list[str]) -> str:
-        __import__("pdb").set_trace()
         header = self.setup_with.to_indented_source(source_lines)
         body = self._indent_multiline_string(self.body.try_body.to_indented_source(source_lines))
         return f"{header}\n{body}"
