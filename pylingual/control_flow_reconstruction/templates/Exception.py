@@ -26,6 +26,8 @@ class Except3_10(ControlFlowTemplate):
     def try_match(cls, cfg, node) -> ControlFlowTemplate | None:
         if [x.opname for x in node.get_instructions()] == ["RERAISE"]:
             return node
+        if x := ExceptExc3_10.try_match(cfg, node):
+            return x
         if x := BareExcept3_10.try_match(cfg, node):
             return x
         if isinstance(node, Except3_10):
@@ -97,7 +99,7 @@ class TryElse3_12(ControlFlowTemplate):
         else:
             {try_else}
         """
-@register_template(1, 1, *versions_from(3, 10))
+@register_template(0, 1, *versions_from(3, 10))
 class Try3_10(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
@@ -153,15 +155,17 @@ class NamedExc3_10(ExcBody3_10):
 # @register_template(0, 0, *versions_from(3, 10))
 class BareExcept3_10(Except3_10):
     template = T(
-        except_body=N("tail.", None).of_type(BlockTemplate),
+        except_body=N("tail.", None).of_type(BlockTemplate).with_cond(with_instructions("POP_EXCEPT")),
         tail=N.tail(),
     )
 
-    try_match = make_try_match(
-        {
-            EdgeKind.Fall: "tail",
-        },
-        "except_body",
+    try_match = revert_on_fail(
+            make_try_match(
+            {
+                EdgeKind.Fall: "tail",
+            },
+            "except_body",
+        )
     )
 
     @to_indented_source
@@ -171,7 +175,7 @@ class BareExcept3_10(Except3_10):
             {except_body}
         """
 
-@register_template(0, 0, *versions_from(3, 10))
+#@register_template(0, 0, *versions_from(3, 10))
 class ExceptExc3_10(Except3_10):
     template = T(
             except_header = N("body", "falsejump"),
@@ -180,13 +184,15 @@ class ExceptExc3_10(Except3_10):
             tail = N.tail(),
             )
 
-    try_match = make_try_match(
-        {
-            EdgeKind.Fall: "tail",
-        },
-        "body",
-        "except_header",
-        "falsejump",
+    try_match = revert_on_fail(
+            make_try_match(
+            {
+                EdgeKind.Fall: "tail",
+            },
+            "body",
+            "except_header",
+            "falsejump",
+        )
     )
 
     @to_indented_source
