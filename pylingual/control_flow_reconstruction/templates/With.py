@@ -54,13 +54,15 @@ class WithCleanup3_10(ControlFlowTemplate):
 
     @override
     def to_indented_source(self, source):
-        return []
+        """
+        {poptop}
+        """
 
 @register_template(0, 10, *versions_from(3, 10))
 class With3_10(ControlFlowTemplate):
     template = T(
         setup_with=~N("with_body", None),
-        with_body=N("normal_cleanup", None, "exc_cleanup").with_in_deg(1),
+        with_body=N("normal_cleanup.", None, "exc_cleanup").with_in_deg(1),
         exc_cleanup=N.tail().of_subtemplate(WithCleanup3_10).with_in_deg(1),
         normal_cleanup=~N.tail(),
     )
@@ -72,4 +74,5 @@ class With3_10(ControlFlowTemplate):
         """
         {setup_with}
             {with_body}
+        {exc_cleanup}
         """
