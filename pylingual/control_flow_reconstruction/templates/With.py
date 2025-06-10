@@ -22,11 +22,11 @@ class WithCleanup3_11(ControlFlowTemplate):
         """
 
 @register_template(0, 10, (3, 11), (3, 12), (3, 13))
-class With3_12(ControlFlowTemplate):
+class With3_11(ControlFlowTemplate):
     template = T(
         setup_with=~N("with_body", None),
         with_body=N("normal_cleanup.", None, "exc_cleanup").with_in_deg(1),
-        exc_cleanup=N.tail().of_subtemplate(WithCleanup3_12).with_in_deg(1),
+        exc_cleanup=N.tail().of_subtemplate(WithCleanup3_11).with_in_deg(1),
         normal_cleanup=~N.tail(),
     )
 
