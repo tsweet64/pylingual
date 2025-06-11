@@ -129,6 +129,41 @@ class Try3_10(ControlFlowTemplate):
             {try_body}
         {except_body}
         """
+@register_template(0, 0, *versions_from(3, 10))
+class TryElse3_10(ControlFlowTemplate):
+    template = T(
+        try_header=N("try_body"),
+        try_body=N("try_footer.", None, "except_body"),
+        try_footer=N("else_body").with_in_deg(1),
+        # Of type BlockTemplate because if it is ExceptExc it's a try-except-fallthrough
+        except_body=N("tail.").with_in_deg(1).of_subtemplate(Except3_10),
+        else_body=~N("tail.").with_in_deg(1),
+        tail=N.tail(),
+    )
+
+    try_match = revert_on_fail(
+        make_try_match(
+            {
+                EdgeKind.Fall: "tail",
+            },
+            "try_header",
+            "try_body",
+            "try_footer",
+            "except_body",
+            "else_body",
+        )
+    )
+
+    @to_indented_source
+    def to_indented_source():
+        """
+        {try_header}
+        try:
+            {try_body}
+        {except_body}
+        else:
+            {else_body}
+        """
 
 class ExcBody3_10(ControlFlowTemplate):
     @classmethod
