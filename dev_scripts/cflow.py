@@ -72,9 +72,11 @@ def run(file: Path, out_dir: Path, version: PythonVersion, print=False):
         edit_pyc_lines(pyc, src_lines)
 
         cfts = {bc.codeobj: bc_to_cft(bc) for bc in pyc.iter_bytecodes()}
-        out_src = (str(SourceContext(pyc, src_lines, cfts)))
-        try: out_src = normalize_source(out_src)
-        except: pass
+        out_src = str(SourceContext(pyc, src_lines, cfts))
+        try:
+            out_src = normalize_source(out_src)
+        except:
+            pass
 
         out_path = out_dir / "b.py"
         out_path.write_text(out_src, encoding="utf-8")
