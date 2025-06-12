@@ -35,7 +35,6 @@ class Except3_11(ControlFlowTemplate):
         if x := BareExcept3_11.try_match(cfg, node):
             return x
 
-
 class Except3_10(ControlFlowTemplate):
     @classmethod
     @override
@@ -48,7 +47,6 @@ class Except3_10(ControlFlowTemplate):
             return x
         if isinstance(node, Except3_10):
             return node
-
 
 @register_template(0, 0, *versions_from(3, 12))
 class Try3_12(ControlFlowTemplate):
@@ -117,14 +115,13 @@ class TryElse3_12(ControlFlowTemplate):
             {try_else}
         """
 
-
 @register_template(0, 1, (3, 10))
 class Try3_10(ControlFlowTemplate):
     template = T(
-        try_header=N("try_body"),
+        try_header=~N("try_body"),
         try_body=N("try_footer.", None, "except_body"),
-        try_footer=N("tail."),
-        except_body=N("tail.").of_subtemplate(Except3_10),
+        try_footer=~N("tail."),
+        except_body=~N("tail.").of_subtemplate(Except3_10),
         tail=N.tail(),
     )
 
@@ -149,14 +146,12 @@ class Try3_10(ControlFlowTemplate):
         {except_body}
         """
 
-
 @register_template(0, 0, (3, 10))
 class TryElse3_10(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
         try_body=N("try_footer.", None, "except_body"),
         try_footer=N("else_body").with_in_deg(1),
-        # Of type BlockTemplate because if it is ExceptExc it's a try-except-fallthrough
         except_body=N("tail.").with_in_deg(1).of_subtemplate(Except3_10),
         else_body=~N("tail.").with_in_deg(1),
         tail=N.tail(),
@@ -195,7 +190,6 @@ class ExcBody3_10(ControlFlowTemplate):
             return x
         return node
 
-
 class NamedExc3_10(ExcBody3_10):
     template = T(
         header=N("body", None).with_cond(with_instructions("POP_TOP", "STORE_FAST")),
@@ -212,7 +206,7 @@ class NamedExc3_10(ExcBody3_10):
 
 class BareExcept3_10(Except3_10):
     template = T(
-        except_body=N("tail.", None).of_type(BlockTemplate).with_cond(with_instructions("POP_EXCEPT")),
+        except_body=~N("tail.", None).of_type(BlockTemplate).with_cond(with_instructions("POP_EXCEPT")),
         tail=N.tail(),
     )
 
@@ -231,7 +225,6 @@ class BareExcept3_10(Except3_10):
         except:
             {except_body}
         """
-
 
 class ExceptExc3_10(Except3_10):
     template = T(
@@ -260,6 +253,81 @@ class ExceptExc3_10(Except3_10):
         {falsejump}
         """
 
+@register_template(2, 50, *versions_from(3, 10))
+class TryFinally3_10(ControlFlowTemplate):
+    template = T(
+        try_header=N("try_body"),
+        try_body=N("finally_body", None, "fail_body"),
+        finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
+        fail_body=N("tail.").with_cond(with_instructions("RERAISE")),
+        tail=N.tail(),
+    )
+    template2 = T(
+        try_except=N("finally_tail", None, "fail_body").of_subtemplate(Try3_10),
+        finally_tail=N("finally_body", None, "fail_body"),
+        finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
+        fail_body=N("tail.").with_cond(with_instructions("RERAISE")),
+        tail=N.tail(),
+    )
+
+    @staticmethod
+    def find_finally_cutoff(mapping):
+        f = mapping["finally_body"]
+        g = mapping["fail_body"]
+        if any(x.starts_line is not None for x in g.get_instructions()):
+            return None
+        if not isinstance(f, BlockTemplate):
+            f = BlockTemplate([f])
+        if not isinstance(g, BlockTemplate):
+            g = BlockTemplate([g])
+        #if isinstance(g.members[0], InstTemplate) and g.members[0].inst.opname == "PUSH_EXC_INFO":
+        #    g.members.pop(0)
+        if isinstance(g.members[-1], InstTemplate) and g.members[-1].inst.opname == "RERAISE":
+            g.members.pop()
+        x = None
+        for x, y in zip(f.members, g.members):
+            if all(type(a) in [IfThen, IfElse] for a in (x, y)):
+                continue
+            if type(x) is not type(y):
+                return None
+        return x and f.members.index(x)
+
+    cutoff: int
+
+    @classmethod
+    @override
+    def try_match(cls, cfg, node) -> ControlFlowTemplate | None:
+        mapping = cls.template.try_match(cfg, node)
+        if mapping is None:
+            mapping = cls.template2.try_match(cfg, node)
+            if mapping is None:
+                return None
+            mapping["try_header"] = mapping.pop("try_except")
+
+        cutoff = cls.find_finally_cutoff(mapping)
+        if cutoff is None:
+            if cfg.run == 2:
+                cutoff = 9999
+            else:
+                return None
+
+        template = condense_mapping(cls, cfg, mapping, "try_header", "try_body", "finally_body", "fail_body")
+        template.cutoff = cutoff
+        return template
+
+    def to_indented_source(self, source: SourceContext) -> list[SourceLine]:
+        header = source[self.try_header]
+        body = source[self.try_body, 1]
+
+        if isinstance(self.finally_body, BlockTemplate):
+            i = self.cutoff + 1
+            in_finally = source[BlockTemplate(self.finally_body.members[:i]), 1] if i > 0 else []
+            after = source[BlockTemplate(self.finally_body.members[i:])] if i < len(self.finally_body.members) else []
+        else:
+            in_finally = source[self.finally_body, 1]
+            after = []
+
+        return list(chain(header, self.line("try:"), body, self.line("finally:"), in_finally, after))
 
 class BareExcept3_11(Except3_11):
     template = T(
