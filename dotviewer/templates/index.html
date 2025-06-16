@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DOT File Viewer</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: #f4f4f4; }
+        .controls { margin-bottom: 15px; display: flex; align-items: center; gap: 20px; }
+        #group-selector-label { font-size: 1em; }
+        #group-selector { padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 1em;}
+        #graph-info { font-size: 1.1em; color: #333; background-color: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; min-width: 250px; }
+        #graph-container { 
+            width: 90vw; 
+            border: 1px solid #ccc; 
+            overflow: auto; 
+            background-color: #fff;
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #graph-container svg { 
+            display: block; 
+        }
+        .loading { font-style: italic; color: #777; }
+        .error { color: red; font-weight: bold; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="controls">
+        <label for="group-selector" id="group-selector-label">Code object:</label>
+        <select id="group-selector"></select>
+        <a href="/reload">Reload</a>
+    </div>
+    <div id="graph-info">Loading...</div>
+    <div id="graph-container">
+        <p class="loading">Please wait, loading graph...</p>
+    </div>
+
+    <script>
+        const graphContainer = document.getElementById('graph-container');
+        const graphInfo = document.getElementById('graph-info');
+        const groupSelector = document.getElementById('group-selector');
+        
+        const ALL_GROUP_NAMES_FROM_SERVER = {{ all_group_names | tojson }}; // Jinja passes Python list as JS array
+        const INITIAL_GROUP_NAME = "{{ initial_group_name }}"; // e.g., "All"
+
+        let vizInstance;
+        let currentGroupData = { name: "", files: [], total_in_group: 0 }; // { name: "groupName", files: [{filename, overall_index}, ...], total_in_group: N }
+        let currentIndexInGroup = 0;
+
+        async function initializeViz() {
+            if (!vizInstance) {
+                try {
+                    vizInstance = new Viz(); 
+                } catch (e) {
+                    console.error("Failed to initialize Viz.js:", e);
+                    graphContainer.innerHTML = '<p class="error">Error initializing Viz.js. Check console.</p>';
+                    graphInfo.textContent = "Error";
+                    throw e; // re-throw to stop further execution
+                }
+            }
+        }
+
+        async function fetchAndSetGroup(groupName) {
+            try {
+                const response = await fetch(`/get_group_details/${encodeURIComponent(groupName)}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ description: "Unknown error" }));
+                    throw new Error(`Failed to fetch group data: ${response.status} ${errorData.description || response.statusText}`);
+                }
+                currentGroupData = await response.json();
+                currentIndexInGroup = 0; // Reset to first graph in new group
+
+                if (currentGroupData.files.length > 0) {
+                    await loadGraphInGroup(currentIndexInGroup);
+                } else {
+                    graphInfo.textContent = `'${currentGroupData.name}': No graphs found.`;
+                    graphContainer.innerHTML = '<p>No graphs in this group.</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching group details:', error);
+                graphContainer.innerHTML = `<p class="error">Error loading group: ${error.message}</p>`;
+                graphInfo.textContent = `Error loading group '${groupName}'`;
+                currentGroupData = { name: groupName, files: [], total_in_group: 0 }; // Reset
+            }
+        }
+
+        async function loadGraphInGroup(indexInGroup) {
+            if (!currentGroupData || currentGroupData.files.length === 0) {
+                graphInfo.textContent = `'${currentGroupData.name}': No graphs to display.`;
+                graphContainer.innerHTML = '<p>No graphs available in current selection.</p>';
+                return;
+            }
+            
+            await initializeViz(); // Ensure Viz is ready
+
+            // Clamp index for current group
+            if (indexInGroup < 0) {
+                indexInGroup = currentGroupData.total_in_group - 1;
+            } else if (indexInGroup >= currentGroupData.total_in_group) {
+                indexInGroup = 0;
+            }
+            currentIndexInGroup = indexInGroup;
+
+            const fileToLoad = currentGroupData.files[currentIndexInGroup];
+            const overallIndex = fileToLoad.overall_index;
+
+            try {
+                const response = await fetch(`/get_graph/${overallIndex}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ description: "Unknown error" }));
+                    throw new Error(`Failed to fetch graph data: ${response.status} ${errorData.description || response.statusText}`);
+                }
+                const graphData = await response.json(); // Contains dot_content, filename, index (overall)
+                
+                graphInfo.textContent = `'${currentGroupData.name}': ${graphData.filename} (${currentIndexInGroup + 1}/${currentGroupData.total_in_group})`;
+
+                const renderOptions = { engine: 'neato', nop: 1 };
+                const svgElement = await vizInstance.renderSVGElement(graphData.dot_content, renderOptions);
+                
+                graphContainer.innerHTML = ''; 
+                graphContainer.appendChild(svgElement);
+
+            } catch (error) {
+                console.error('Error loading or rendering graph:', error);
+                graphContainer.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                graphInfo.textContent = `Error loading graph ${fileToLoad.filename}`;
+            }
+        }
+
+        function populateGroupSelector() {
+            // Add "All" option first
+            const allOption = document.createElement('option');
+            allOption.value = "All";
+            allOption.textContent = "All";
+            groupSelector.appendChild(allOption);
+
+            // Add other groups
+            ALL_GROUP_NAMES_FROM_SERVER.forEach(groupName => {
+                const option = document.createElement('option');
+                option.value = groupName;
+                option.textContent = groupName;
+                groupSelector.appendChild(option);
+            });
+
+            groupSelector.value = INITIAL_GROUP_NAME; // Set initial selection
+
+            groupSelector.addEventListener('change', (event) => {
+                fetchAndSetGroup(event.target.value);
+            });
+        }
+
+        document.addEventListener('keydown', async (event) => {
+            if (currentGroupData.files.length === 0) return; // No graphs to navigate
+
+            if (event.key === 'ArrowRight' || event.key === 'n' || event.key === 'd') {
+                await loadGraphInGroup(currentIndexInGroup + 1);
+            } else if (event.key === 'ArrowLeft' || event.key === 'p' || event.key === 'a') {
+                await loadGraphInGroup(currentIndexInGroup - 1);
+            }
+
+        });
+
+        // Initial setup
+        async function main() {
+            await initializeViz(); // Initialize Viz.js early
+            populateGroupSelector();
+            await fetchAndSetGroup(INITIAL_GROUP_NAME); // Load initial group data and first graph
+        }
+        
+        main().catch(err => {
+            console.error("Initialization failed:", err);
+            graphInfo.textContent = "Application failed to initialize.";
+            graphContainer.innerHTML = "<p class='error'>Critical error during startup. Check console.</p>";
+        });
+
+    </script>
+</body>
+</html>
