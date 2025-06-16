@@ -269,7 +269,7 @@ class TryFinally3_10(ControlFlowTemplate):
         tail=N.tail(),
     )
     template2 = T(
-        try_except=N("finally_tail", None, "fail_body").of_subtemplate(Try3_10),
+        try_except=N("finally_tail", None, "fail_body").of_type(TryElse3_10, Try3_10),
         finally_tail=N("finally_body", None, "fail_body"),
         finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
         fail_body=N("tail.").with_cond(with_instructions("RERAISE")),
