@@ -118,6 +118,7 @@ class TryElse3_12(ControlFlowTemplate):
 @register_template(0, 1, (3, 10))
 class Try3_10(ControlFlowTemplate):
     template = T(
+        try_header=~N("try_body"),
         try_body=N("try_footer.", None, "except_body"),
         try_footer=~N("tail."),
         except_body=~N("tail.").of_subtemplate(Except3_10),
@@ -129,6 +130,7 @@ class Try3_10(ControlFlowTemplate):
             {
                 EdgeKind.Fall: "tail",
             },
+            "try_header",
             "try_body",
             "except_body",
             "try_footer",
@@ -138,6 +140,7 @@ class Try3_10(ControlFlowTemplate):
     @to_indented_source
     def to_indented_source():
         """
+        {try_header}
         try:
             {try_body}
         {except_body}
@@ -146,6 +149,7 @@ class Try3_10(ControlFlowTemplate):
 @register_template(0, 0, (3, 10))
 class TryElse3_10(ControlFlowTemplate):
     template = T(
+        try_header=N("try_body"),
         try_body=N("try_footer.", None, "except_body"),
         try_footer=N("else_body").with_in_deg(1),
         except_body=N("tail.").with_in_deg(1).of_subtemplate(Except3_10),
@@ -158,6 +162,7 @@ class TryElse3_10(ControlFlowTemplate):
             {
                 EdgeKind.Fall: "tail",
             },
+            "try_header",
             "try_body",
             "try_footer",
             "except_body",
@@ -168,6 +173,7 @@ class TryElse3_10(ControlFlowTemplate):
     @to_indented_source
     def to_indented_source():
         """
+        {try_header}
         try:
             {try_body}
         {except_body}
@@ -200,7 +206,7 @@ class NamedExc3_10(ExcBody3_10):
 
 class BareExcept3_10(Except3_10):
     template = T(
-        except_body=~N("tail.", None).of_type(BlockTemplate).with_cond(with_instructions("POP_EXCEPT"), with_instructions("RAISE_VARARGS")),
+        except_body=~N("tail.", None).of_type(BlockTemplate).with_cond(with_instructions("POP_EXCEPT")),
         tail=N.tail(),
     )
 
