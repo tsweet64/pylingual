@@ -35,6 +35,7 @@ class Except3_11(ControlFlowTemplate):
         if x := BareExcept3_11.try_match(cfg, node):
             return x
 
+
 class Except3_10(ControlFlowTemplate):
     @classmethod
     @override
@@ -47,6 +48,7 @@ class Except3_10(ControlFlowTemplate):
             return x
         if isinstance(node, Except3_10):
             return node
+
 
 @register_template(0, 0, *versions_from(3, 12))
 class Try3_12(ControlFlowTemplate):
@@ -115,6 +117,7 @@ class TryElse3_12(ControlFlowTemplate):
             {try_else}
         """
 
+
 @register_template(0, 1, (3, 10))
 class Try3_10(ControlFlowTemplate):
     template = T(
@@ -145,6 +148,7 @@ class Try3_10(ControlFlowTemplate):
             {try_body}
         {except_body}
         """
+
 
 @register_template(0, 0, (3, 10))
 class TryElse3_10(ControlFlowTemplate):
@@ -190,6 +194,7 @@ class ExcBody3_10(ControlFlowTemplate):
             return x
         return node
 
+
 class NamedExc3_10(ExcBody3_10):
     template = T(
         header=N("body", None).with_cond(with_instructions("POP_TOP", "STORE_FAST")),
@@ -226,6 +231,7 @@ class BareExcept3_10(Except3_10):
             {except_body}
         """
 
+
 class ExceptExc3_10(Except3_10):
     template = T(
         except_header=N("body", "falsejump"),
@@ -252,6 +258,7 @@ class ExceptExc3_10(Except3_10):
             {body}
         {falsejump}
         """
+
 
 @register_template(2, 50, *versions_from(3, 10))
 class TryFinally3_10(ControlFlowTemplate):
@@ -280,8 +287,6 @@ class TryFinally3_10(ControlFlowTemplate):
             f = BlockTemplate([f])
         if not isinstance(g, BlockTemplate):
             g = BlockTemplate([g])
-        #if isinstance(g.members[0], InstTemplate) and g.members[0].inst.opname == "PUSH_EXC_INFO":
-        #    g.members.pop(0)
         if isinstance(g.members[-1], InstTemplate) and g.members[-1].inst.opname == "RERAISE":
             g.members.pop()
         x = None
@@ -328,6 +333,7 @@ class TryFinally3_10(ControlFlowTemplate):
             after = []
 
         return list(chain(header, self.line("try:"), body, self.line("finally:"), in_finally, after))
+
 
 class BareExcept3_11(Except3_11):
     template = T(

@@ -97,16 +97,16 @@ def print_results(a: Path, b: Path, result: Result, results: list[tuple[bool, st
     a_text = a.read_text()
     b_text = b.read_text()
     console = rich.console.Console(highlight=False)
-    console.print("=== original file ===", style='green bold')
+    console.print("=== original file ===", style="green bold")
     console.print(a_text)
-    console.print("\n=== reconstructed file ===", style='green bold')
+    console.print("\n=== reconstructed file ===", style="green bold")
     console.print(b_text)
-    console.print("\n=== equivalence report ===", style='green bold')
+    console.print("\n=== equivalence report ===", style="green bold")
     if results:
         for success, name in results:
-            console.print(name, style='' if success else 'red bold underline')
+            console.print(name, style="" if success else "red bold underline")
     else:
-        console.print(result, style='red bold underline')
+        console.print(result, style="red bold underline")
 
 
 def get_unused(a: Path, _=True):
