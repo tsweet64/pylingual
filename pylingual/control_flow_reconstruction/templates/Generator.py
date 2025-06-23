@@ -21,6 +21,21 @@ class Await3_12(ControlFlowTemplate):
 
 
 @register_template(0, 0)
+class AwaitWith3_12(ControlFlowTemplate):
+    template = T(
+        awaited=~N("SEND", None).with_cond(no_back_edges),
+        SEND=~N("YIELD_VALUE", "CLEANUP_THROW").with_in_deg(2).with_cond(exact_instructions("SEND")),
+        YIELD_VALUE=N("JUMP_BACK_NO_INT", None, "CLEANUP_THROW").with_in_deg(1).with_cond(exact_instructions("YIELD_VALUE")),
+        JUMP_BACK_NO_INT=~N("SEND", None).with_cond(exact_instructions("JUMP_BACKWARD_NO_INTERRUPT")),
+        CLEANUP_THROW=N.tail(),
+    )
+
+    try_match = make_try_match({EdgeKind.Fall: "CLEANUP_THROW"}, "awaited", "SEND", "YIELD_VALUE", "JUMP_BACK_NO_INT")
+
+    to_indented_source = defer_source_to("awaited")
+
+
+@register_template(0, 0)
 class Generator3_12(ControlFlowTemplate):
     template = T(
         entry=N("body").with_cond(exact_instructions("RETURN_GENERATOR", "POP_TOP")),

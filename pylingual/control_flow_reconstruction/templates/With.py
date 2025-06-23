@@ -6,17 +6,18 @@ class WithCleanup3_11(ControlFlowTemplate):
     template = T(
         start=N("reraise", "poptop", "exc").with_cond(starting_instructions("PUSH_EXC_INFO", "WITH_EXCEPT_START")),
         reraise=N(None, None, "exc").with_cond(exact_instructions("RERAISE")).with_in_deg(1),
-        poptop=N("tail", None, "exc").with_cond(exact_instructions("POP_TOP")).with_in_deg(1),
+        poptop=N("pop_exc", None, "exc").with_cond(exact_instructions("POP_TOP")).with_in_deg(1),
         exc=+N().with_cond(exact_instructions("COPY", "POP_EXCEPT", "RERAISE")).with_in_deg(3),
-        tail=~N.tail().with_cond(starting_instructions("POP_EXCEPT", "POP_TOP", "POP_TOP")).with_in_deg(1),
+        pop_exc=~N("tail.", None).with_cond(starting_instructions("POP_EXCEPT", "POP_TOP")).with_in_deg(1),
+        tail=N.tail(),
     )
 
-    try_match = make_try_match({}, "start", "reraise", "poptop", "exc", "tail")
+    try_match = make_try_match({EdgeKind.Fall: "tail"}, "start", "reraise", "poptop", "exc", "pop_exc")
 
     @to_indented_source
     def to_indented_source():
         """
-        {tail}
+        {pop_exc}
         """
 
 
@@ -25,17 +26,19 @@ class With3_11(ControlFlowTemplate):
     template = T(
         setup_with=~N("with_body", None),
         with_body=N("normal_cleanup.", None, "exc_cleanup").with_in_deg(1),
-        exc_cleanup=N.tail().of_subtemplate(WithCleanup3_11).with_in_deg(1),
-        normal_cleanup=~N.tail(),
+        exc_cleanup=~N("tail.", None).of_subtemplate(WithCleanup3_11).with_in_deg(1),
+        normal_cleanup=~N("tail.", None).with_in_deg(1),
+        tail=N.tail(),
     )
 
-    try_match = make_try_match({EdgeKind.Fall: "normal_cleanup"}, "setup_with", "with_body", "exc_cleanup")
+    try_match = make_try_match({EdgeKind.Fall: "tail"}, "setup_with", "with_body", "exc_cleanup", "normal_cleanup")
 
     @to_indented_source
     def to_indented_source():
         """
         {setup_with}
             {with_body}
+        {exc_cleanup}
         """
 
 
