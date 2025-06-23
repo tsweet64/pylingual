@@ -2,6 +2,7 @@ from typing import override
 from ..cft import ControlFlowTemplate, EdgeKind, register_template
 from ..utils import T, N, exact_instructions, starting_instructions, to_indented_source, make_try_match, versions_from
 
+
 class WithCleanup3_11(ControlFlowTemplate):
     template = T(
         start=N("reraise", "poptop", "exc").with_cond(
@@ -21,6 +22,7 @@ class WithCleanup3_11(ControlFlowTemplate):
         """
         {pop_exc}
         """
+
 
 @register_template(0, 10, (3, 11), (3, 12), (3, 13))
 class With3_11(ControlFlowTemplate):
@@ -42,6 +44,7 @@ class With3_11(ControlFlowTemplate):
         {exc_cleanup}
         """
 
+
 class WithCleanup3_9(ControlFlowTemplate):
     template = T(
         start=~N("reraise", "poptop").with_cond(
@@ -59,6 +62,7 @@ class WithCleanup3_9(ControlFlowTemplate):
         """
         {poptop}
         """
+
 
 @register_template(0, 10, (3, 9), (3, 10))
 class With3_9(ControlFlowTemplate):
@@ -78,6 +82,7 @@ class With3_9(ControlFlowTemplate):
             {with_body}
         {exc_cleanup}
         """
+
 
 @register_template(0, 10, (3, 6), (3, 7), (3, 8))
 class With3_6(ControlFlowTemplate):

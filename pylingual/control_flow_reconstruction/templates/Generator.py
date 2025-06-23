@@ -19,6 +19,7 @@ class Await3_12(ControlFlowTemplate):
 
     to_indented_source = defer_source_to("awaited")
 
+
 @register_template(0, 0)
 class AwaitWith3_12(ControlFlowTemplate):
     template = T(
@@ -32,6 +33,7 @@ class AwaitWith3_12(ControlFlowTemplate):
     try_match = make_try_match({EdgeKind.Fall: "CLEANUP_THROW"}, "awaited", "SEND", "YIELD_VALUE", "JUMP_BACK_NO_INT")
 
     to_indented_source = defer_source_to("awaited")
+
 
 @register_template(0, 0)
 class Generator3_12(ControlFlowTemplate):
