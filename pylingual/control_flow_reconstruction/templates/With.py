@@ -1,13 +1,10 @@
-from typing import override
 from ..cft import ControlFlowTemplate, EdgeKind, register_template
 from ..utils import T, N, exact_instructions, starting_instructions, to_indented_source, make_try_match, versions_from
 
 
 class WithCleanup3_11(ControlFlowTemplate):
     template = T(
-        start=N("reraise", "poptop", "exc").with_cond(
-            starting_instructions("PUSH_EXC_INFO", "WITH_EXCEPT_START"),  # 3.11 and later
-        ),
+        start=N("reraise", "poptop", "exc").with_cond(starting_instructions("PUSH_EXC_INFO", "WITH_EXCEPT_START")),
         reraise=N(None, None, "exc").with_cond(exact_instructions("RERAISE")).with_in_deg(1),
         poptop=N("pop_exc", None, "exc").with_cond(exact_instructions("POP_TOP")).with_in_deg(1),
         exc=+N().with_cond(exact_instructions("COPY", "POP_EXCEPT", "RERAISE")).with_in_deg(3),
@@ -18,13 +15,13 @@ class WithCleanup3_11(ControlFlowTemplate):
     try_match = make_try_match({EdgeKind.Fall: "tail"}, "start", "reraise", "poptop", "exc", "pop_exc")
 
     @to_indented_source
-    def to_indented_source(self, source):
+    def to_indented_source():
         """
         {pop_exc}
         """
 
 
-@register_template(0, 10, (3, 11), (3, 12), (3, 13))
+@register_template(0, 10, *versions_from(3, 11))
 class With3_11(ControlFlowTemplate):
     template = T(
         setup_with=~N("with_body", None),
@@ -47,9 +44,7 @@ class With3_11(ControlFlowTemplate):
 
 class WithCleanup3_9(ControlFlowTemplate):
     template = T(
-        start=~N("reraise", "poptop").with_cond(
-            starting_instructions("WITH_EXCEPT_START"),  # 3.9 & 3.10
-        ),
+        start=~N("reraise", "poptop").with_cond(starting_instructions("WITH_EXCEPT_START")),
         reraise=+N().with_cond(exact_instructions("RERAISE")).with_in_deg(1),
         poptop=~N("tail.", None).with_cond(starting_instructions("POP_TOP")).with_in_deg(1),
         tail=N.tail(),
@@ -58,7 +53,7 @@ class WithCleanup3_9(ControlFlowTemplate):
     try_match = make_try_match({EdgeKind.Fall: "tail"}, "start", "reraise", "poptop")
 
     @to_indented_source
-    def to_indented_source(self, source):
+    def to_indented_source():
         """
         {poptop}
         """

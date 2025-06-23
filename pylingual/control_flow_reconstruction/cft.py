@@ -326,6 +326,8 @@ class ControlFlowTemplate(ABC):
         self._pos = sum((x._pos for x in members.values() if x is not None), start=[])
 
     def pos(self):
+        if not self._pos:
+            return "0.0,0.0!"
         avg_x = sum(x for x, _ in self._pos) / len(self._pos)
         avg_y = sum(y for _, y in self._pos) / len(self._pos)
         return f"{avg_x},{avg_y}!"
