@@ -260,7 +260,7 @@ class ExceptExc3_10(Except3_10):
         """
 
 
-@register_template(2, 50, *versions_from(3, 10))
+@register_template(2, 50, (3, 10))
 class TryFinally3_10(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
