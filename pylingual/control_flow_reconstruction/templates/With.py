@@ -1,5 +1,5 @@
 from ..cft import ControlFlowTemplate, EdgeKind, register_template
-from ..utils import T, N, exact_instructions, starting_instructions, without_instructions, starting_instructions, to_indented_source, make_try_match, versions_from
+from ..utils import T, N, exact_instructions, starting_instructions, without_instructions, to_indented_source, make_try_match, versions_from
 
 
 class WithCleanup3_11(ControlFlowTemplate):
