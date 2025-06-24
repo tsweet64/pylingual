@@ -50,8 +50,8 @@ class Except3_10(ControlFlowTemplate):
             return node
 
 
-@register_template(0, 0, *versions_from(3, 12))
-class Try3_12(ControlFlowTemplate):
+@register_template(0, 0, *versions_from(3, 11))
+class Try3_11(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
         try_body=N("tail.", None, "except_body"),
@@ -82,8 +82,8 @@ class Try3_12(ControlFlowTemplate):
         """
 
 
-@register_template(0, 0, *versions_from(3, 12))
-class TryElse3_12(ControlFlowTemplate):
+@register_template(0, 0, *versions_from(3, 11))
+class TryElse3_11(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
         try_body=N("try_else.", None, "except_body"),
@@ -118,7 +118,7 @@ class TryElse3_12(ControlFlowTemplate):
         """
 
 
-@register_template(0, 1, (3, 10))
+@register_template(1, 1, (3, 9), (3, 10))
 class Try3_10(ControlFlowTemplate):
     template = T(
         try_header=~N("try_body"),
@@ -150,7 +150,7 @@ class Try3_10(ControlFlowTemplate):
         """
 
 
-@register_template(0, 0, (3, 10))
+@register_template(0, 0, (3, 9), (3, 10))
 class TryElse3_10(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
@@ -260,7 +260,7 @@ class ExceptExc3_10(Except3_10):
         """
 
 
-@register_template(2, 50, *versions_from(3, 10))
+@register_template(2, 50, (3, 9), (3, 10))
 class TryFinally3_10(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
@@ -443,7 +443,7 @@ class ExceptExc3_11(Except3_11):
 
 @register_template(0, 50)
 @register_template(2, 50)
-class TryFinally3_12(ControlFlowTemplate):
+class TryFinally3_11(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
         try_body=N("finally_body", None, "fail_body"),
@@ -453,7 +453,7 @@ class TryFinally3_12(ControlFlowTemplate):
         tail=N.tail(),
     )
     template2 = T(
-        try_except=N("finally_body", None, "fail_body").of_type(Try3_12, TryElse3_12),
+        try_except=N("finally_body", None, "fail_body").of_type(Try3_11, TryElse3_11),
         finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
         fail_body=N(E.exc("reraise")),
         reraise=reraise,
@@ -518,3 +518,176 @@ class TryFinally3_12(ControlFlowTemplate):
             after = []
 
         return list(chain(header, self.line("try:"), body, self.line("finally:"), in_finally, after))
+
+class Except3_6(ControlFlowTemplate):
+    @classmethod
+    @override
+    def try_match(cls, cfg, node) -> ControlFlowTemplate | None:
+        if [x.opname for x in node.get_instructions()] == ["END_FINALLY"]:
+            return node
+        if x := ExceptExc3_6.try_match(cfg, node):
+            return x
+        if x := BareExcept3_6.try_match(cfg, node):
+            return x
+        return None
+
+@register_template(0, 0, (3, 6), (3, 7), (3, 8))
+class Try3_6(ControlFlowTemplate):
+    template = T(
+        try_header=N("try_body"),
+        try_body=N("try_footer", None, "except_body").with_cond(ending_instructions("POP_BLOCK")),
+        try_footer=N("tail").with_cond(starting_instructions("JUMP_FORWARD")),
+        except_body=N("tail").with_in_deg(1).of_subtemplate(Except3_6),
+        tail=N.tail(),
+    )
+
+    try_match = revert_on_fail(
+        make_try_match(
+            {
+                EdgeKind.Fall: "tail",
+            },
+            "try_header",
+            "try_body",
+            "try_footer",
+            "except_body",
+        )
+    )
+
+    @to_indented_source
+    def to_indented_source():
+        """
+        {try_header}
+        try:
+            {try_body}
+        {except_body}
+        """
+
+class ExcBody3_6(ControlFlowTemplate):
+    @classmethod
+    @override
+    def try_match(cls, cfg, node) -> ControlFlowTemplate | None:
+        if x := NamedExc3_6.try_match(cfg, node):
+            return x
+        return node
+
+class NamedExcTail3_6(ControlFlowTemplate):
+    template = T(
+        SWAP=N("tail", "end").with_cond(exact_instructions("SWAP")),
+        end=N(),
+        tail=N.tail(),
+    )
+
+    @classmethod
+    def _try_match(cls, cfg, node):
+        mapping = cls.template.try_match(cfg, node)
+        if mapping is None:
+            return None
+        return condense_mapping(cls, cfg, mapping, "SWAP", "tail", out_filter=[EdgeCategory.Exception])
+
+    @classmethod
+    @override
+    def try_match(cls, cfg, node) -> ControlFlowTemplate | None:
+        if x := cls._try_match(cfg, node):
+            return x
+        return node
+
+    to_indented_source = defer_source_to("tail")
+
+
+class NamedExc3_6(ExcBody3_6):
+    template = T(
+        STORE=N("body").with_cond(exact_instructions("STORE_FAST"), exact_instructions("STORE_NAME")),
+        body=N("tail.", "cleanup"),
+        cleanup=N(E.exc("end")).with_cond(exact_instructions("END_FINALLY")).optional(),
+        end=N().optional(),
+        tail=N.tail().of_subtemplate(NamedExcTail3_6),
+    )
+
+    try_match = make_try_match({EdgeKind.Fall: "tail"}, "STORE", "body", "cleanup", "end")
+
+    to_indented_source = defer_source_to("body")
+
+class ExceptExc3_6(Except3_6):
+    template = T(
+        except_header=N("except_body", "no_match").with_cond(
+            ending_instructions("COMPARE_OP", "POP_JUMP_IF_FALSE"),
+            ending_instructions("COMPARE_OP", "POP_JUMP_FORWARD_IF_FALSE")
+        ),
+        except_body=N("tail.", None).of_subtemplate(ExcBody3_6).with_in_deg(1),
+        no_match=N("tail?", None).of_subtemplate(Except3_6),
+        tail=N.tail(),
+    )
+
+    try_match = revert_on_fail(
+        make_try_match(
+            {
+                EdgeKind.Fall: "tail",
+            },
+            "except_header",
+            "except_body",
+            "no_match",
+        )
+    )
+
+    @to_indented_source
+    def to_indented_source():
+        """
+        {except_header}
+            {except_body}
+        {no_match}
+        """
+
+@register_template(0, 0, (3, 6), (3, 7), (3, 8))
+class TryElse3_6(ControlFlowTemplate):
+    template = T(
+        try_header=N("try_body"),
+        try_body=N("try_footer.", None, "except_body"),
+        try_footer=N("else_body").with_in_deg(1),
+        except_body=N("tail.").with_in_deg(1).of_subtemplate(Except3_6),
+        else_body=~N("tail.").with_in_deg(1),
+        tail=N.tail(),
+    )
+
+    try_match = revert_on_fail(
+        make_try_match(
+            {
+                EdgeKind.Fall: "tail",
+            },
+            "try_header",
+            "try_body",
+            "try_footer",
+            "except_body",
+            "else_body",
+        )
+    )
+
+    @to_indented_source
+    def to_indented_source():
+        """
+        {try_header}
+        try:
+            {try_body}
+        {except_body}
+        else:
+            {else_body}
+        """
+
+class BareExcept3_6(Except3_6):
+    template = T(
+        except_body=N("tail"),
+        tail=N.tail(),
+    )
+
+    try_match = make_try_match(
+        {
+            EdgeKind.Fall: "tail",
+        },
+        "except_body",
+    )
+
+    @to_indented_source
+    def to_indented_source():
+        """
+        except:
+            {except_body}
+        """
