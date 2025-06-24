@@ -570,40 +570,15 @@ class ExcBody3_6(ControlFlowTemplate):
             return x
         return node
 
-class NamedExcTail3_6(ControlFlowTemplate):
-    template = T(
-        SWAP=N("tail", "end").with_cond(exact_instructions("SWAP")),
-        end=N(),
-        tail=N.tail(),
-    )
-
-    @classmethod
-    def _try_match(cls, cfg, node):
-        mapping = cls.template.try_match(cfg, node)
-        if mapping is None:
-            return None
-        return condense_mapping(cls, cfg, mapping, "SWAP", "tail", out_filter=[EdgeCategory.Exception])
-
-    @classmethod
-    @override
-    def try_match(cls, cfg, node) -> ControlFlowTemplate | None:
-        if x := cls._try_match(cfg, node):
-            return x
-        return node
-
-    to_indented_source = defer_source_to("tail")
-
-
 class NamedExc3_6(ExcBody3_6):
     template = T(
-        STORE=N("body").with_cond(exact_instructions("STORE_FAST"), exact_instructions("STORE_NAME")),
-        body=N("tail.", "cleanup"),
-        cleanup=N(E.exc("end")).with_cond(exact_instructions("END_FINALLY")).optional(),
-        end=N().optional(),
-        tail=N.tail().of_subtemplate(NamedExcTail3_6),
+        header=N("body", None).with_cond(starting_instructions("POP_TOP", "STORE_FAST")),
+        body=N("normal_cleanup", None, "exception_cleanup"),
+        normal_cleanup=N("exception_cleanup."),
+        exception_cleanup=N.tail().with_cond(with_instructions("LOAD_CONST", "STORE_FAST")),
     )
 
-    try_match = make_try_match({EdgeKind.Fall: "tail"}, "STORE", "body", "cleanup", "end")
+    try_match = make_try_match({EdgeKind.Fall: "tail"}, "exception_cleanup", "header", "body", "normal_cleanup")
 
     to_indented_source = defer_source_to("body")
 
@@ -691,3 +666,80 @@ class BareExcept3_6(Except3_6):
         except:
             {except_body}
         """
+
+@register_template(0, 50)
+@register_template(2, 50)
+class TryFinally3_6(ControlFlowTemplate):
+    template = T(
+        try_header=N("try_body"),
+        try_body=N("finally_body", None, "fail_body"),
+        finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
+        fail_body=N(E.exc("reraise")),
+        tail=N.tail(),
+    )
+    template2 = T(
+        try_except=N("finally_body", None, "fail_body").of_type(Try3_6, TryElse3_6),
+        finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
+        fail_body=N(E.exc("reraise")),
+        reraise=reraise,
+        tail=N.tail(),
+    )
+
+    @staticmethod
+    def find_finally_cutoff(mapping):
+        f = mapping["finally_body"]
+        g = mapping["fail_body"]
+        if any(x.starts_line is not None for x in g.get_instructions()):
+            return None
+        if not isinstance(f, BlockTemplate):
+            f = BlockTemplate([f])
+        if not isinstance(g, BlockTemplate):
+            g = BlockTemplate([g])
+        if isinstance(g.members[0], InstTemplate) and g.members[0].inst.opname == "PUSH_EXC_INFO":
+            g.members.pop(0)
+        if isinstance(g.members[-1], InstTemplate) and g.members[-1].inst.opname == "RERAISE":
+            g.members.pop()
+        x = None
+        for x, y in zip(f.members, g.members):
+            if all(type(a) in [IfThen, IfElse] for a in (x, y)):
+                continue
+            if type(x) is not type(y):
+                return None
+        return x and f.members.index(x)
+
+    cutoff: int
+
+    @classmethod
+    @override
+    def try_match(cls, cfg, node) -> ControlFlowTemplate | None:
+        mapping = cls.template.try_match(cfg, node)
+        if mapping is None:
+            mapping = cls.template2.try_match(cfg, node)
+            if mapping is None:
+                return None
+            mapping["try_header"] = mapping.pop("try_except")
+
+        cutoff = cls.find_finally_cutoff(mapping)
+        if cutoff is None:
+            if cfg.run == 2:
+                cutoff = 9999
+            else:
+                return None
+
+        template = condense_mapping(cls, cfg, mapping, "try_header", "try_body", "finally_body", "fail_body", "reraise")
+        template.cutoff = cutoff
+        return template
+
+    def to_indented_source(self, source: SourceContext) -> list[SourceLine]:
+        header = source[self.try_header]
+        body = source[self.try_body, 1]
+
+        if isinstance(self.finally_body, BlockTemplate):
+            i = self.cutoff + 1
+            in_finally = source[BlockTemplate(self.finally_body.members[:i]), 1] if i > 0 else []
+            after = source[BlockTemplate(self.finally_body.members[i:])] if i < len(self.finally_body.members) else []
+        else:
+            in_finally = source[self.finally_body, 1]
+            after = []
+
+        return list(chain(header, self.line("try:"), body, self.line("finally:"), in_finally, after))
