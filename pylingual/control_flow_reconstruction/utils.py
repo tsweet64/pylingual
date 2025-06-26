@@ -107,6 +107,17 @@ def no_back_edges(cfg: CFG, node: ControlFlowTemplate | None) -> bool:
     return node is None or not any(cfg.dominates(succ, node) for succ in cfg.successors(node))
 
 
+def has_incoming_edge_of_categories(*categories: str):
+    def check(cfg: CFG, node: ControlFlowTemplate | None) -> bool:
+        # check if any edge from a predecessor has the given category
+        for pred in cfg.predecessors(node):
+            edge_data = cfg.get_edge_data(pred, node, default={})
+            kind = edge_data.get("kind")
+            if any(kind.value == category for category in categories):
+                return True
+        return False
+    return check
+
 def run_is(n: int):
     def check_run(cfg: CFG, node: ControlFlowTemplate | None) -> bool:
         return cfg.run == n

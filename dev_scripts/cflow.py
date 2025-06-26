@@ -82,8 +82,8 @@ def run(file: Path, out_dir: Path, version: PythonVersion, print=False):
         if print:
             print_result(f"Equivalance results for {file}", result)
         return Result.Success if all(x.success for x in result) else Result.Failure, [(x.success, str(x)) for x in result], file, out_dir
-    except (CompileError, SyntaxError):
-        return Result.CompileError, [], file, out_dir
+    except (CompileError, SyntaxError) as e:
+        return Result.CompileError, e, file, out_dir
     except Exception:
         rich.get_console().print_exception()
         return Result.Error, [], file, out_dir
@@ -93,7 +93,7 @@ class NoPool:
     imap_unordered = map
 
 
-def print_results(a: Path, b: Path, result: Result, results: list[tuple[bool, str]]):
+def print_results(a: Path, b: Path, result: Result, results: list[tuple[bool, str]] | Exception):
     a_text = a.read_text()
     b_text = b.read_text()
     console = rich.console.Console(highlight=False)
@@ -102,7 +102,10 @@ def print_results(a: Path, b: Path, result: Result, results: list[tuple[bool, st
     console.print("\n=== reconstructed file ===", style="green bold")
     console.print(b_text)
     console.print("\n=== equivalence report ===", style="green bold")
-    if results:
+    if isinstance(results, Exception):
+        console.print(result, style="red bold underline")
+        console.print(results)
+    elif isinstance(results, list) and results:
         for success, name in results:
             console.print(name, style="" if success else "red bold underline")
     else:
