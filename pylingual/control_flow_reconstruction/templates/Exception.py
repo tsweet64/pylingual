@@ -211,7 +211,7 @@ class NamedExc3_10(ExcBody3_10):
 
 class BareExcept3_10(Except3_10):
     template = T(
-        except_body=~N("tail.", None).of_type(BlockTemplate).with_cond(with_instructions("POP_EXCEPT")),
+        except_body=~N("tail.", None).with_cond(with_instructions("POP_EXCEPT")),
         tail=N.tail(),
     )
 
@@ -266,14 +266,14 @@ class TryFinally3_10(ControlFlowTemplate):
         try_header=N("try_body"),
         try_body=N("finally_body", None, "fail_body"),
         finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
-        fail_body=N("tail.").with_cond(with_instructions("RERAISE")),
+        fail_body=N("tail.").with_cond(ending_instructions("POP_TOP", "RERAISE")),
         tail=N.tail(),
     )
     template2 = T(
         try_except=N("finally_tail", None, "fail_body").of_type(TryElse3_10, Try3_10),
         finally_tail=N("finally_body", None, "fail_body"),
         finally_body=~N("tail.").with_in_deg(1).with_cond(no_back_edges),
-        fail_body=N("tail.").with_cond(with_instructions("RERAISE")),
+        fail_body=N("tail.").with_cond(ending_instructions("POP_TOP", "RERAISE")),
         tail=N.tail(),
     )
 
