@@ -14,6 +14,7 @@ from ..utils import (
     ending_instructions,
     exact_instructions,
     no_back_edges,
+    has_incoming_edge_of_categories,
     revert_on_fail,
     starting_instructions,
     to_indented_source,
@@ -50,7 +51,7 @@ class Except3_10(ControlFlowTemplate):
             return node
 
 
-@register_template(0, 0, *versions_from(3, 12))
+@register_template(0, 0, *versions_from(3, 11))
 class Try3_12(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
@@ -82,7 +83,7 @@ class Try3_12(ControlFlowTemplate):
         """
 
 
-@register_template(0, 0, *versions_from(3, 12))
+@register_template(0, 0, *versions_from(3, 11))
 class TryElse3_12(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
@@ -118,7 +119,7 @@ class TryElse3_12(ControlFlowTemplate):
         """
 
 
-@register_template(0, 1, (3, 10))
+@register_template(0, 1, (3, 9), (3, 10))
 class Try3_10(ControlFlowTemplate):
     template = T(
         try_header=~N("try_body"),
@@ -150,7 +151,7 @@ class Try3_10(ControlFlowTemplate):
         """
 
 
-@register_template(0, 0, (3, 10))
+@register_template(0, 0, (3, 9), (3, 10))
 class TryElse3_10(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
@@ -211,7 +212,7 @@ class NamedExc3_10(ExcBody3_10):
 
 class BareExcept3_10(Except3_10):
     template = T(
-        except_body=~N("tail.", None).with_cond(with_instructions("POP_EXCEPT")),
+        except_body=~N("tail.", None).with_cond(with_instructions("POP_EXCEPT")).with_cond(has_incoming_edge_of_categories("exception", "false_jump")),
         tail=N.tail(),
     )
 
@@ -235,8 +236,8 @@ class BareExcept3_10(Except3_10):
 class ExceptExc3_10(Except3_10):
     template = T(
         except_header=N("body", "falsejump"),
-        body=N("tail.").of_subtemplate(ExcBody3_10),
-        falsejump=N("tail.").of_subtemplate(Except3_10),
+        body=~N("tail.").of_subtemplate(ExcBody3_10),
+        falsejump=~N("tail.").of_subtemplate(Except3_10),
         tail=N.tail(),
     )
 
@@ -260,7 +261,7 @@ class ExceptExc3_10(Except3_10):
         """
 
 
-@register_template(2, 50, (3, 10))
+@register_template(2, 50, (3, 9), (3, 10))
 class TryFinally3_10(ControlFlowTemplate):
     template = T(
         try_header=N("try_body"),
