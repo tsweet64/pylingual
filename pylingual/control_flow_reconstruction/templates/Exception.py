@@ -384,10 +384,10 @@ class ExcBody3_9(ControlFlowTemplate):
 
 class NamedExc3_9(ExcBody3_9):
     template = T(
-        header=N("body", None).with_cond(with_instructions("POP_TOP", "STORE_FAST")),
+        header=~N("body", None).with_cond(with_instructions("POP_TOP", "STORE_FAST")),
         body=N("normal_cleanup", None, "exception_cleanup"),
-        normal_cleanup=N("tail.").with_cond(with_instructions("STORE_FAST", "DELETE_FAST")),
-        exception_cleanup=N.tail().with_cond(with_instructions("STORE_FAST", "DELETE_FAST")),
+        normal_cleanup=~N("tail.").with_cond(with_instructions("STORE_FAST", "DELETE_FAST")),
+        exception_cleanup=~N.tail().with_cond(with_instructions("STORE_FAST", "DELETE_FAST")),
         tail=N.tail(),
     )
 
@@ -398,8 +398,8 @@ class NamedExc3_9(ExcBody3_9):
 
 class BareExcept3_9(Except3_9):
     template = T(
-        except_body=~N("tail.", None).with_cond(with_instructions("POP_EXCEPT")).with_cond(has_incoming_edge_of_categories("exception", "false_jump")),
-        tail=N.tail(),
+        except_body=~N("tail.", None).with_cond(starting_instructions("POP_TOP", "POP_TOP", "POP_TOP")).with_cond(has_incoming_edge_of_categories("exception", "false_jump")),
+        tail=~N.tail(),
     )
 
     try_match = revert_on_fail(
@@ -421,7 +421,7 @@ class BareExcept3_9(Except3_9):
 
 class ExceptExc3_9(Except3_9):
     template = T(
-        except_header=N("body", "falsejump"),
+        except_header=~N("body", "falsejump"),
         body=~N("tail.").of_subtemplate(ExcBody3_9),
         falsejump=~N("tail.").of_subtemplate(Except3_9),
         tail=N.tail(),
