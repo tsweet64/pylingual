@@ -87,7 +87,7 @@ def run(file: Path, out_dir: Path, version: PythonVersion, print=False):
     except (CompileError, SyntaxError) as e:
         return Result.CompileError, e, file, out_dir
     except Exception:
-        rich.get_console().print_exception()
+        #rich.get_console().print_exception()
         return Result.Error, [], file, out_dir
 
 
@@ -176,7 +176,7 @@ def main(input: Path, output: str, version: PythonVersion, graph: str | None, js
             o = Path(o)
             result, eqr, infilename, _ = run(input, o, version)
             if jsonout:
-                print(json.dumps(equivalence_report_json(infilename, result, version, eqr)))
+                __builtins__.print(json.dumps(equivalence_report_json(infilename, result, version, eqr),separators=(',', ':')))
             else:
                 print_results(o / input.stem / "a.py", o / input.stem / "b.py", result, eqr)
     else:
